@@ -1,0 +1,322 @@
+---
+title: "Text Mining with R-word2vec"
+author: "Eralda Gjika"
+date: "February 07, 2022"
+output:
+  html_notebook: default
+  word_document: default
+---
+## Text Mining {.tabset}
+
+### Word2Vec
+
+**Option #3.** Train your own Word2Vec model on the 100MB Wikipedia model from 2006: http://mattmahoney.net/dc/text8.zip  
+
+```{r include=FALSE}
+library(tidyverse)
+library(data.table)
+library(tm)
+library(word2vec)
+#library(devtools)
+#devtools::install_github("bmschmidt/wordVectors")
+```
+
+**(a)** 
+Data imported from [Source](http://mattmahoney.net/dc/text8.zip) 
+
+```{r include=FALSE}
+temp <- tempfile()
+ download.file("http://mattmahoney.net/dc/text8.zip", destfile = temp)
+ (file_list <- as.character(unzip(temp, list = TRUE)$Name))
+ unzip(temp)
+ unlink(temp) # Delete temp file
+ file.rename(from="text8",to="text8.txt") # append an extension to the filename
+```
+
+#### **Train word2vec model and explore** 
+
+Explore analogies.  Come up with a few of your own. 
+Come up with 3 examples of analogies and show the results from your model.
+
+```{r warning=FALSE, include=FALSE}
+# Train word2vec model and explore. 
+T1 = Sys.time() 
+model <- word2vec(x='text8.txt', dim = 200, window = 12, type = "cbow", threads = 40) 
+(Elapsed4 = T1-Sys.time()) 
+
+#Embedding dimension is 200, window is size 12 
+model # all info about fitting 
+as.matrix(model) %>% dim 
+# save model fitting: 
+model  %>% write.word2vec(file = "text8.bin", type = "bin") 
+# reload model fitting 
+model =  read.word2vec("text8.bin")
+```
+
+#### **NearBy Terms**
+Using predict function we will find nearby terms with given word and display similarity index and the rank of these words (which is closet to the given word). Below are displayed  13 words and their top similarities. 
+- literature
+- technology
+- epoch
+- galaxy
+- ice
+- gender
+- mathematics etc. 
+```{r}
+model %>% predict("literature") 
+model %>% predict("technology") 
+model %>% predict("epoch") 
+model %>% predict("ice") 
+model %>% predict("galaxy") 
+model %>% predict("gender")
+model %>% predict("mathematics") 
+model %>% predict("forecast") 
+model %>% predict("project") 
+model %>% predict("europe") 
+model %>% predict("world") 
+model %>% predict("women") 
+model %>% predict("science") 
+
+```
+#### **Word analogy**
+To get analogy or to observe strong regularities in the word vector space I am first understanding some relations on key words:
+**"technology" and "internet"**
+```{r include=FALSE}
+#predict(model, vectors,  type = c("nearest", "embedding"), top_n = 10) 
+# find 'technology' and 'internet' vectors: 
+model %>% predict(c("technology","internet"),  type = "embedding") 
+ #Average some vectors 
+ tech_int = apply(model %>% predict(c("technology","internet"),  type = "embedding"),2,mean) 
+ # store it as a 1 row matrix: 
+ tech_int = matrix(tech_int,nrow=1,dimnames=list("tech_int",NULL))
+ head(tech_int)
+```
+
+```{r}
+technology=word2vec_similarity( as.matrix(model)["technology",],  as.matrix(model),  top_n = 10, type =  "cosine")
+internet=word2vec_similarity( as.matrix(model)["internet",],  as.matrix(model),  top_n = 10, type =  "cosine") 
+# similarity to the average of these terms: 
+ #word2vec_similarity(x, y, top_n = +Inf, type = c("dot", "cosine")) 
+technology_and_internet=word2vec_similarity( tech_int,  as.matrix(model),  top_n = 20, type =  "cosine") 
+# next: take a closer look at these words
+```
+
+```{r}
+#Plot based on distance from "computer" and "internet" 
+internet=word2vec_similarity( as.matrix(model)["internet",], as.matrix(model)[technology_and_internet$term2,],  type =  "cosine") 
+technology=word2vec_similarity( as.matrix(model)["technology",], as.matrix(model)[technology_and_internet$term2,],  type =  "cosine") 
+plot(internet, technology,type='n', xlim = c(0,1),slim = c(0,1)) 
+text(internet, technology,labels=technology_and_internet$term2)
+
+
+```
+
+#### **technology and mathematics**
+```{r}
+tech_mat = apply(model %>% predict(c("technology","mathematics"),  type = "embedding"),2,mean) 
+ # store it as a 1 row matrix: 
+ tech_mat = matrix(tech_mat,nrow=1,dimnames=list("comp_int",NULL))
+ tech_mat
+ 
+technology=word2vec_similarity( as.matrix(model)["technology",],  as.matrix(model),  top_n = 10, type =  "cosine")
+mathematics=word2vec_similarity( as.matrix(model)["mathematics",],  as.matrix(model),  top_n = 10, type =  "cosine") 
+# similarity to the average of these terms: 
+ #word2vec_similarity(x, y, top_n = +Inf, type = c("dot", "cosine")) 
+technology_and_mathematics=word2vec_similarity( tech_mat,  as.matrix(model),  top_n = 20, type =  "cosine") 
+# next: take a closer look at these words
+
+#Plot based on distance from "computer" and "internet" 
+mathematics=word2vec_similarity( as.matrix(model)["mathematics",], as.matrix(model)[technology_and_mathematics$term2,],  type =  "cosine") 
+technology=word2vec_similarity( as.matrix(model)["technology",], as.matrix(model)[technology_and_mathematics$term2,],  type =  "cosine") 
+plot(mathematics, technology,type='n', xlim = c(0,1),slim = c(0,1)) 
+text(mathematics, technology,labels=technology_and_mathematics$term2)
+# Zoom plot
+plot(mathematics, technology,type='n', xlim = c(0,0.6),slim = c(0,1),ylim=c(0,0.6)) 
+text(mathematics, technology,labels=technology_and_mathematics$term2)
+```
+
+#### **women and science**
+```{r}
+sci_women = apply(model %>% predict(c("science","women"),  type = "embedding"),2,mean) 
+ # store it as a 1 row matrix: 
+ sci_women = matrix(sci_women,nrow=1,dimnames=list("comp_int",NULL))
+ sci_women
+ 
+science=word2vec_similarity( as.matrix(model)["science",],  as.matrix(model),  top_n = 10, type =  "cosine")
+women=word2vec_similarity( as.matrix(model)["women",],  as.matrix(model),  top_n = 10, type =  "cosine") 
+# similarity to the average of these terms: 
+ #word2vec_similarity(x, y, top_n = +Inf, type = c("dot", "cosine")) 
+science_and_women=word2vec_similarity( sci_women,  as.matrix(model),  top_n = 20, type =  "cosine") 
+# next: take a closer look at these words
+
+#Plot based on distance from "computer" and "internet" 
+women=word2vec_similarity( as.matrix(model)["women",], as.matrix(model)[science_and_women$term2,],  type =  "cosine") 
+science=word2vec_similarity( as.matrix(model)["science",], as.matrix(model)[science_and_women$term2,],  type =  "cosine") 
+
+#Plot
+plot(women, science,type='n', xlim = c(0,1),ylim = c(0,1)) 
+text(women, science,labels=science_and_women$term2)
+```
+Surprisingly (or not) we see that women and science "correlations" are close to 0.5
+**Come up with 3 examples of analogies and show the results from your model.**
+
+- **Analogy 1**: **"science","man","woman"**
+
+```{r}
+Query = as.matrix( model)[c("science","man","woman"),]
+ word2vec_similarity( Query[1,]-Query[2,]+ Query[3,],
+ as.matrix(model), top_n = 15, type = "cosine")
+ #runtime is ~ 20 seconds
+```
+- **Analogy 2**: **"science","technology","virtual"**
+```{r}
+Query = as.matrix( model)[c("science","technology","woman"),]
+ word2vec_similarity( Query[1,]-Query[2,]+ Query[3,],
+ as.matrix(model), top_n = 15, type = "cosine")
+ #runtime is ~ 20 seconds
+```
+
+**Analogy 3**: **"didactic","literacy","computer"**
+```{r}
+Query = as.matrix( model)[c("didactic","literacy","computer"),]
+ word2vec_similarity( Query[1,]-Query[2,]+ Query[3,],
+ as.matrix(model), top_n = 15, type = "cosine")
+ #runtime is ~ 20 seconds
+```
+
+
+**Part (b)** 
+You can use the cookbooks, Google, or Wikipedia embeddings for this question.  Regardless of the CBOW or skip-gram models that you used, find the 50 word vectors closest to any of {beef, carrot, bread, egg, milk, beer, yeast}.  You should have 50 x 7 words (but you might have a few less unique words if there is some overlap.  Obtain the cosine distances between all these words (arguably no other distance metric makes sense for word vectors). Perform clustering on the word vectors and plot the dendogram output. 
+
+First running this functions. 
+```{r}
+prep_word2vec <- function(origin,destination,lowercase=F,
+                          bundle_ngrams=1, ...)
+{
+  # strsplit chokes on large lines. I would not have gone down this path if I knew this
+  # to begin with.
+  message("Beginning tokenization to text file at ", destination)
+  if (!exists("dir.exists")) {
+    # Use the version from devtools if in R < 3.2.0
+    dir.exists <- function (x)
+    {
+      res <- file.exists(x) & file.info(x)$isdir
+      stats::setNames(res, x)
+    }
+  }
+  if (dir.exists(origin)) {
+    origin = list.files(origin,recursive=T,full.names = T)
+  }
+  if (file.exists(destination)) file.remove(destination)
+  tokenize_words = function (x, lowercase = TRUE) {
+    # This is an abbreviated version of the "tokenizers" package version to remove the dependency.
+    # Sorry, Lincoln, it was failing some tests.
+    if (lowercase) x <- stringi::stri_trans_tolower(x)
+    out <- stringi::stri_split_boundaries(x, type = "word", skip_word_none = TRUE)
+    unlist(out)
+  }
+  prep_single_file <- function(file_in, file_out, lowercase) {
+    message("Prepping ", file_in)
+    text <- file_in %>%
+      readr::read_file() %>%
+      tokenize_words(lowercase) %>%
+      stringr::str_c(collapse = " ")
+    stopifnot(length(text) == 1)
+    readr::write_lines(text, file_out, append = TRUE)
+    return(TRUE)
+  }
+  Map(prep_single_file, origin, lowercase=lowercase, file_out=destination)
+  # Save the ultimate output
+  real_destination_name = destination
+  # Repeatedly build bigrams, trigrams, etc.
+  if (bundle_ngrams > 1) {
+    while(bundle_ngrams > 1) {
+      old_destination = destination
+      destination = paste0(destination,"_")
+      word2phrase(old_destination,destination,...)
+      file.remove(old_destination)
+      bundle_ngrams = bundle_ngrams - 1
+    }
+    file.rename(destination,real_destination_name)
+  }
+  silent = real_destination_name
+}
+word2phrase=function(train_file,output_file,debug_mode=0,min_count=5,threshold=100,force=FALSE)
+{
+  if (!file.exists(train_file)) stop("Can't find the training file!")
+  if (file.exists(output_file) && !force) stop("The output file '",
+                                               output_file ,
+                                               "' already exists: give a new destination or run with 'force=TRUE'.")
+  OUT=.C("word2phrase",rtrain_file=as.character(train_file),
+         rdebug_mode=as.integer(debug_mode),
+         routput_file=as.character(output_file),
+         rmin_count=as.integer(min_count),
+         rthreshold=as.double(threshold))
+  return(output_file)
+}
+
+```
+
+
+```{r}
+#CBOW
+T1 = Sys.time()
+modelcbow <- word2vec(x="text8.txt", dim = 200, window = 12, type = "cbow", threads = 40)
+(Elapsed4 = T1-Sys.time())
+```
+
+- Find the 50 word vectors closest to any of **{beef, carrot, bread, egg, milk, beer, yeast}**.  You should have 50 x 7 words (but you might have a few less unique words if there is some overlap.  
+
+- Obtain the **cosine distances** between all these words (arguably no other distance metric makes sense for word vectors). Value interpretation: -1 = exact opposite, 1 = exactly the same, 0 = orthogonal
+
+**Expand out to search for more food words:**
+
+```{r}
+#Expand out to search for more food words:
+foodStuff = apply(modelcbow %>%
+predict(c("beef", "carrot", "bread", "egg", "milk", "beer", "yeast"), type = "embedding"),2,mean)
+foodStuff = matrix(foodStuff,nrow=1,dimnames=list("foodStuff",NULL))
+
+#Obtain the cosine distances between all these words
+Near_Food=word2vec_similarity( foodStuff, as.matrix(modelcbow), top_n = 50, type = "cosine") 
+head(Near_Food)
+tail(Near_Food)
+```
+
+- **Perform clustering on the word vectors and plot the dendogram output.** 
+ 
+```{r}
+centers = 150
+clustering = kmeans(as.matrix(modelcbow),centers=centers,iter.max = 40)
+ temp = clustering$cluster %>% table
+ Ind = which(temp>400) #these are clusters with a lot of members
+ sapply(c(Ind ,sample(1:centers,7)),function(n) {
+ names(clustering$cluster[clustering$cluster==n][1:10])
+ })
+```
+
+- Plotting the dendogram for the vector of words: "beef", "carrot", "bread", "egg", "milk", "beer", "yeast"
+```{r}
+ingredients = c("beef", "carrot", "bread", "egg", "milk", "beer", "yeast")
+ foods2use = NULL
+ for(food in ingredients){
+ foods2use = rbind(foods2use,
+ apply(model %>%
+predict(food, type = "embedding"),2,mean))
+ }
+ subset = as.matrix(model)[unique(c(ingredients,Near_Food$term2)),]
+ word2vec_similarity(subset, subset, type = "cosine") %>%
+ as.dist %>% # consider it a distance matrix
+ hclust %>% # hierarchical clustering
+ plot
+```
+
+It seems like "desserts" are in a separate cluster. The other clusters seem like food menu based on keywords like: (carrot and milk), (egg and beer), (meet, beef and flavor), (bread, yeast and peast)
+
+**Main Reference:** 
+
+- **Lecture Notes week 4**
+- [Text Mining With R](http://tidytextmining.com/) By [Julia Silge](http://juliasilge.com/) and [David Robinson](http://varianceexplained.org/).
+
+**END!**
+
